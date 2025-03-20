@@ -34,7 +34,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const { data } = await axios.post("http://localhost:5000/api/users/login", {
+      const { data } = await axios.post("https://task-softmind.vercel.app/api/users/login", {
         email,
         password,
       });
@@ -52,7 +52,7 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      const { data } = await axios.post("http://localhost:5000/api/users", userData);
+      const { data } = await axios.post("https://task-softmind.vercel.app/api/users", userData);
       setUser(data);
       localStorage.setItem("user", JSON.stringify(data));
      if(data.role !== 'user'){ fetchUsersByRole(data.role);}

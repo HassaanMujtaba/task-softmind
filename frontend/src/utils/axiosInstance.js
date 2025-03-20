@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
+  baseURL: 'https://task-softmind.vercel.app/api',
     headers: { "Content-Type": "application/json" },
 });
 
