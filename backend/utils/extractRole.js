@@ -10,7 +10,6 @@ export const extractRoleFromToken = (authorization, key) => {
       throw new Error("No token provided");
     }
 
-    // Verify and decode the token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     if (key === "id") {

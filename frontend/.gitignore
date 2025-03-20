@@ -28,3 +28,6 @@ frontend/.env
 frontend/build/
 *.log
 .vercel
+frontend/dist/
+frontend/.env
+.vercel

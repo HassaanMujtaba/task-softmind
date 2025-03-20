@@ -3,35 +3,85 @@ import Task from '../models/taskModel.js';
 import { taskSchema } from '../utils/validationSchema.js';
 import { extractRoleFromToken } from '../utils/extractRole.js';
 import User from '../models/userModel.js';
+import multer from 'multer';
+import cloudinary from '../config/cloudinary.js';
 
 
-const createTask = asyncHandler(async (req, res) => {
-  const { title, description, assignedTo, status, priority, dueDate } = req.body;
-  await taskSchema.validate(
-    { title, description, assignedTo, status, priority, dueDate },
-    { abortEarly: false }
-  );
-  
-  const createdBy = extractRoleFromToken(req.headers.authorization, 'id'); 
-  const task = await Task.create({
-    title,
-    description,
-    assignedTo,
-    status,
-    priority,
-    dueDate,
-    createdBy
+const upload = multer({ storage: multer.memoryStorage() });
+
+
+const uploadToCloudinary = async (file) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { resource_type: 'auto' },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve({ url: result.secure_url, filename: file.originalname });
+      }
+    );
+    stream.end(file.buffer);
   });
-  
-  res.status(201).json(task);
-});
+};
+
+const createTask = async (req, res) => {
+  try {
+    const { title, description, assignedTo, status, priority, dueDate } = req.body;
+
+    await taskSchema.validate(
+      { title, description, assignedTo, status, priority, dueDate },
+      { abortEarly: false }
+    );
+
+    const createdBy = extractRoleFromToken(req.headers.authorization, 'id');
+    if (!createdBy) {
+      res.status(401);
+      throw new Error('Unauthorized: Invalid or missing token');
+    }
+
+    const attachments = [];
+
+
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        try {
+          const uploadedFile = await uploadToCloudinary(file);
+          attachments.push(uploadedFile);
+        } catch (uploadError) {
+          console.error('Error uploading file to Cloudinary:', uploadError);
+          res.status(500);
+          throw new Error('Failed to upload attachment');
+        }
+      }
+    }
+
+    const task = await Task.create({
+      title,
+      description,
+      assignedTo,
+      status,
+      priority,
+      dueDate,
+      createdBy,
+      attachments,
+    });
+
+    if (!task) {
+      res.status(500);
+      throw new Error('Failed to create task');
+    }
+
+    res.status(201).json(task);
+  } catch (error) {
+    console.error('Error in createTask:', error);
+    res.status(error.status || 500);
+    res.json({ success: false, message: error.message || 'Internal Server Error' });
+  }
+};
 
 
 const getTasks = async (req, res) => {
   try {
     const { status, priority, assignedTo, myTasks } = req.query;
-    
-
     const role = extractRoleFromToken(req.headers.authorization);
     const userId = extractRoleFromToken(req.headers.authorization, 'id');
 
@@ -42,44 +92,35 @@ const getTasks = async (req, res) => {
     let filter = {};
     const hasQueryParams = status || priority || assignedTo || myTasks !== undefined;
 
- 
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
 
-   
     if (myTasks !== undefined) {
-      filter.assignedTo = userId; 
+      filter.assignedTo = userId;
     } else {
-     
       if (role === 'user') {
-        filter.assignedTo = userId; 
+        filter.assignedTo = userId;
       } else if (role === 'manager') {
-       
         const userIds = await User.find({ role: 'user' }).select('_id');
-        const validUserIds = userIds.map(u => u._id.toString()); 
-        
+        const validUserIds = userIds.map(u => u._id.toString());
         if (assignedTo) {
-          
           if (!validUserIds.includes(assignedTo)) {
-            return res.status(403).json({
-              message: 'Managers can only filter tasks assigned to users',
-            });
+            return res.status(403).json({ message: 'Managers can only filter tasks assigned to users' });
           }
-          filter.assignedTo = assignedTo; 
+          filter.assignedTo = assignedTo;
         } else {
-          filter.assignedTo = { $in: validUserIds }; 
+          filter.assignedTo = { $in: validUserIds };
         }
       } else if (role === 'admin') {
-        if (assignedTo) {
-          filter.assignedTo = assignedTo;
-        }
+        if (assignedTo) filter.assignedTo = assignedTo;
       }
     }
 
-    console.log('Filter applied:', filter);
+ 
     const tasks = await Task.find(filter)
       .populate('assignedTo', 'name email role')
-      .populate('createdBy', 'name email');
+      .populate('createdBy', 'name email')
+      .populate('history.updatedBy', 'name email'); 
 
     res.status(200).json(tasks);
   } catch (error) {
@@ -92,25 +133,55 @@ const getTasks = async (req, res) => {
 
 const updateTask = asyncHandler(async (req, res) => {
   try {
-    const { status } = req.query; 
-    console.log(status)
     const task = await Task.findById(req.params.id);
-
     if (!task) {
       return res.status(404).json({ message: 'Task not found' });
     }
 
-    if (status !== undefined) {
-      task.status = status;
-    } else {
-      const { title, description, assignedTo, priority, dueDate, status } = req.body;
-      console.log(title, description, assignedTo, priority, dueDate)
-      if (title !== undefined) task.title = title;
-      if (description !== undefined) task.description = description;
-      if (assignedTo !== undefined) task.assignedTo = assignedTo;
-      if (priority !== undefined) task.priority = priority;
-      if (dueDate !== undefined) task.dueDate = dueDate;
-      if (status !== undefined) task.status = status;
+    const updatedBy = extractRoleFromToken(req.headers.authorization, 'id');
+    const changes = [];
+
+    const trackChange = (field, oldValue, newValue) => {
+      if (oldValue !== newValue && newValue !== undefined) {
+        changes.push({
+          field,
+          oldValue: oldValue?.toString(),
+          newValue: newValue.toString()
+        });
+      }
+    };
+
+    const { title, description, assignedTo, priority, dueDate, status } = req.body;
+    trackChange('title', task.title, title);
+    trackChange('description', task.description, description);
+    trackChange('assignedTo', task.assignedTo?.toString(), assignedTo);
+    trackChange('priority', task.priority, priority);
+    trackChange('dueDate', task.dueDate?.toISOString(), dueDate);
+    trackChange('status', task.status, status);
+
+    if (title !== undefined) task.title = title;
+    if (description !== undefined) task.description = description;
+    if (assignedTo !== undefined) task.assignedTo = assignedTo;
+    if (priority !== undefined) task.priority = priority;
+    if (dueDate !== undefined) task.dueDate = dueDate;
+    if (status !== undefined) task.status = status;
+
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        const uploadedFile = await uploadToCloudinary(file);
+        task.attachments.push(uploadedFile);
+      }
+    }
+
+    if (changes.length > 0) {
+      changes.forEach(change => {
+        task.history.push({
+          updatedBy,
+          updatedAt: new Date(),
+          changes: change
+        });
+      });
+      task.markModified('history');
     }
 
     const updatedTask = await task.save();

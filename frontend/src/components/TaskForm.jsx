@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TextField, Button, MenuItem, Box } from '@mui/material';
+import { TextField, Button, MenuItem, Box, Typography, List, ListItem, ListItemText } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
 
 const TaskForm = ({ onSubmit, initialData = {} }) => {
@@ -9,12 +9,11 @@ const TaskForm = ({ onSubmit, initialData = {} }) => {
     status: initialData?.status || 'pending',
     priority: initialData?.priority || 'medium',
     dueDate: initialData?.dueDate?.split('T')[0] || '',
-    assignedTo: initialData?.assignedTo?._id || '',
-    attachments: [],
+    assignedTo: initialData?.assignedTo?._id || ''
   });
 
   const [files, setFiles] = useState([]);
-  const { users } = useAuth(); // Getting users list from AuthContext
+  const { users } = useAuth();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -22,24 +21,28 @@ const TaskForm = ({ onSubmit, initialData = {} }) => {
   };
 
   const handleFileChange = (e) => {
-    setFiles(Array.from(e.target.files));
+    const selectedFiles = Array.from(e.target.files);
+    setFiles(selectedFiles);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const formDataToSend = new FormData();
-  
+
     Object.keys(formData).forEach(key => {
-      if (key !== 'attachments' && formData[key] !== undefined && formData[key] !== null) {
-        formDataToSend.append(key, formData[key]); 
+      if (formData[key]) {
+        formDataToSend.append(key, formData[key]);
       }
     });
-  
+
     files.forEach(file => {
       formDataToSend.append('attachments', file);
     });
 
-    await onSubmit(formData);
+    for (let [key, value] of formDataToSend.entries()) {
+    }
+
+    await onSubmit(formDataToSend);
   };
 
   return (
@@ -48,7 +51,7 @@ const TaskForm = ({ onSubmit, initialData = {} }) => {
         fullWidth
         label="Title"
         name="title"
-        value={formData?.title}
+        value={formData.title}
         onChange={handleChange}
         required
       />
@@ -58,7 +61,7 @@ const TaskForm = ({ onSubmit, initialData = {} }) => {
         name="description"
         multiline
         rows={4}
-        value={formData?.description}
+        value={formData.description}
         onChange={handleChange}
         required
       />
@@ -67,7 +70,7 @@ const TaskForm = ({ onSubmit, initialData = {} }) => {
         fullWidth
         label="Status"
         name="status"
-        value={formData?.status}
+        value={formData.status}
         onChange={handleChange}
       >
         <MenuItem value="pending">Pending</MenuItem>
@@ -79,7 +82,7 @@ const TaskForm = ({ onSubmit, initialData = {} }) => {
         fullWidth
         label="Priority"
         name="priority"
-        value={formData?.priority}
+        value={formData.priority}
         onChange={handleChange}
       >
         <MenuItem value="low">Low</MenuItem>
@@ -91,34 +94,53 @@ const TaskForm = ({ onSubmit, initialData = {} }) => {
         type="date"
         label="Due Date"
         name="dueDate"
-        value={formData?.dueDate}
+        value={formData.dueDate}
         onChange={handleChange}
         InputLabelProps={{ shrink: true }}
         required
       />
-
-      {/* Assign To Field */}
       <TextField
         select
         fullWidth
         label="Assign To"
         name="assignedTo"
-        value={formData?.assignedTo}
+        value={formData.assignedTo}
         onChange={handleChange}
       >
         {users?.map((user) => (
-          <MenuItem key={user._id} value={user._id}>
+          <MenuItem key={user?._id} value={user?._id}>
             {user.name}
           </MenuItem>
         ))}
       </TextField>
 
-      <TextField
+      {initialData?._id && initialData?.attachments?.length > 0 && (
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="subtitle1">Existing Attachments:</Typography>
+          <List dense>
+            {initialData.attachments.map((attachment, index) => (
+              <ListItem key={index}>
+                <ListItemText primary={attachment.filename} />
+              </ListItem>
+            ))}
+          </List>
+        </Box>
+      )}
+
+      <input
+        type="file"
+        multiple
+        onChange={handleFileChange}
+        style={{ margin: '8px' }}
+      />
+      {/* <TextField
         type="file"
         multiple
         onChange={handleFileChange}
         InputLabelProps={{ shrink: true }}
-      />
+        label="Add Attachments (Optional)"
+      /> */}
+
       <Button type="submit" variant="contained" color="primary">
         {initialData?._id ? 'Update Task' : 'Create Task'}
       </Button>

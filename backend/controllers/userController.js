@@ -1,16 +1,17 @@
-import asyncHandler from 'express-async-handler';
 import User from '../models/userModel.js';
 import generateToken from '../utils/generateToken.js';
 import { extractRoleFromToken } from '../utils/extractRole.js';
 
-// @desc    Auth user & get token
-// @route   POST /api/users/login
-// @access  Public
-const authUser = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
-  const user = await User.findOne({ email });
+const authUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
 
-  if (user && (await user.matchPassword(password))) {
+    if (!user || !(await user.matchPassword(password))) {
+      res.status(401);
+      throw new Error('Invalid email or password');
+    }
+
     res.json({
       _id: user._id,
       name: user.name,
@@ -18,32 +19,35 @@ const authUser = asyncHandler(async (req, res) => {
       role: user.role,
       token: generateToken(user._id, user.role),
     });
-  } else {
-    res.status(401);
-    throw new Error('Invalid email or password');
+  } catch (error) {
+    res.status(error.status || 500);
+    res.json({ success: false, message: error.message || 'Internal Server Error' });
   }
-});
+};
 
-// @desc    Register a new user
-// @route   POST /api/users
-// @access  Public
-const registerUser = asyncHandler(async (req, res) => {
-  const { name, email, password, role } = req.body;
-  const userExists = await User.findOne({ email });
 
-  if (userExists) {
-    res.status(400);
-    throw new Error('User already exists');
-  }
+const registerUser = async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+    const userExists = await User.findOne({ email });
 
-  const user = await User.create({
-    name,
-    email,
-    password,
-    role,
-  });
+    if (userExists) {
+      res.status(400);
+      throw new Error('User already exists');
+    }
 
-  if (user) {
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role,
+    });
+
+    if (!user) {
+      res.status(400);
+      throw new Error('Invalid user data');
+    }
+
     res.status(201).json({
       _id: user._id,
       name: user.name,
@@ -51,37 +55,41 @@ const registerUser = asyncHandler(async (req, res) => {
       role: user.role,
       token: generateToken(user._id, user.role),
     });
-  } else {
-    res.status(400);
-    throw new Error('Invalid user data');
+  } catch (error) {
+    res.status(error.status || 500);
+    res.json({ success: false, message: error.message || 'Internal Server Error' });
   }
-});
+};
 
 
-const getUsersByRole = asyncHandler(async (req, res) => {
+const getUsersByRole = async (req, res) => {
   try {
-   
     const role = extractRoleFromToken(req.headers.authorization);
-     console.log(role)
+
     let filter = {};
 
-    if (role === "admin") {
-      filter = { role: { $in: ["user", "manager"] } };
-    } else if (role === "manager") {
-      filter = { role: "user" };
+    if (role === 'admin') {
+      filter = { role: { $in: ['user', 'manager'] } };
+    } else if (role === 'manager') {
+      filter = { role: 'user' };
     } else {
-      return res.status(403).json({ success: false, message: "Access Denied" });
+      res.status(403);
+      throw new Error('Access Denied');
     }
 
-    const users = await User.find(filter).select("-password"); // Exclude password
+    const users = await User.find(filter).select('-password'); 
+
+    if (!users) {
+      res.status(404);
+      throw new Error('No users found');
+    }
 
     res.status(200).json({ success: true, users });
   } catch (error) {
-    console.log("Error fetching users by role:", error);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
+    
+    res.status(error.status || 500);
+    res.json({ success: false, message: error.message || 'Internal Server Error' });
   }
-});
+};
 
-
-
-export { authUser, registerUser ,getUsersByRole};
+export { authUser, registerUser, getUsersByRole };

@@ -43,7 +43,7 @@ function App() {
                 </PrivateRoute>
               }
             />
-            <Route path="/" element={<Navigate to="/tasks" replace />} />
+            <Route path="/" element={<Navigate to="/login" replace />} />
           </Routes>
         </Router>
       </AuthProvider>

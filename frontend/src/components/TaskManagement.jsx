@@ -16,14 +16,12 @@ export const TaskManagement = () => {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      // Build query string from filters
       const query = new URLSearchParams();
       if (filters.status) query.append('status', filters.status);
       if (filters.priority) query.append('priority', filters.priority);
       if (filters.assignedTo) query.append('assignedTo', filters.assignedTo);
 
       const { data } = await apiRequest.get(`/tasks?${query.toString()}`);
-      console.log(data, 'aaa');
       setTasks(data);
     } catch (error) {
       console.error('Error fetching tasks:', error);
@@ -34,7 +32,7 @@ export const TaskManagement = () => {
 
   useEffect(() => {
     fetchTasks();
-  }, [filters]); // Refetch when filters change
+  }, [filters]);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
@@ -44,15 +42,16 @@ export const TaskManagement = () => {
   const handleSubmit = async (formData) => {
     try {
       if (editingTask) {
-        await apiRequest.put(`/tasks/${editingTask._id}`, formData);
+        await apiRequest.put(`/tasks/${editingTask._id}`, formData); // No headers
       } else {
-        await apiRequest.post('/tasks', formData);
+        await apiRequest.post('/tasks', formData); // No headers
       }
       fetchTasks();
       setShowForm(false);
       setEditingTask(null);
     } catch (error) {
       console.error('Error submitting task:', error);
+      console.error('Error details:', error.response?.data);
     }
   };
 
@@ -79,14 +78,11 @@ export const TaskManagement = () => {
   };
 
   return (
-    <Container >
+    <Container>
       <Box sx={{ my: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom>
           Task Management
         </Typography>
-
-     
-        
 
         {(user.role === 'admin' || user.role === 'manager') && (
           <Button
@@ -101,14 +97,15 @@ export const TaskManagement = () => {
             {showForm ? 'Close Form' : 'Create New Task'}
           </Button>
         )}
-      
+
         {showForm && (
           <TaskForm
             onSubmit={handleSubmit}
             initialData={editingTask}
           />
         )}
-          <Box sx={{ display: 'flex',flexDirection:{ xs: "column", sm: "row", md: "row", lg: "row" }, gap: 2, mb: 2 ,mt:4,justifyContent:'end' }}>
+
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row', md: 'row', lg: 'row' }, gap: 2, mb: 2, mt: 4, justifyContent: 'end' }}>
           <FormControl sx={{ minWidth: 120 }}>
             <InputLabel>Status</InputLabel>
             <Select
@@ -116,8 +113,8 @@ export const TaskManagement = () => {
               value={filters.status}
               onChange={handleFilterChange}
               label="Status"
-              variant='outlined'
-              sx={{ fontSize:'12px'}}
+              variant="outlined"
+              sx={{ fontSize: '12px' }}
             >
               <MenuItem value="">All</MenuItem>
               <MenuItem value="pending">Pending</MenuItem>
@@ -133,7 +130,7 @@ export const TaskManagement = () => {
               value={filters.priority}
               onChange={handleFilterChange}
               label="Priority"
-              sx={{ fontSize:'12px'}}
+              sx={{ fontSize: '12px' }}
             >
               <MenuItem value="">All</MenuItem>
               <MenuItem value="low">Low</MenuItem>
@@ -149,7 +146,7 @@ export const TaskManagement = () => {
               value={filters.assignedTo}
               onChange={handleFilterChange}
               label="Assigned To"
-              sx={{ fontSize:'12px'}}
+              sx={{ fontSize: '12px' }}
             >
               <MenuItem value="">All</MenuItem>
               {users.map(u => (
@@ -158,13 +155,14 @@ export const TaskManagement = () => {
             </Select>
           </FormControl>
         </Box>
+
         {loading ? (
           <Box display="flex" justifyContent="center" alignItems="center" py={4}>
             <CircularProgress />
           </Box>
         ) : (
           <TaskList
-            tasks={tasks} // Pass server-filtered tasks
+            tasks={tasks}
             onEdit={handleEdit}
             onDelete={handleDelete}
             myTasks={false}

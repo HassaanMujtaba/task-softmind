@@ -21,13 +21,18 @@ if (process.env.NODE_ENV === 'development') {
 app.use(cors());
 app.use(express.json());
 
-
 app.use('/api/users', userRoutes);
 app.use('/api/tasks', taskRoutes);
-
 
 app.use(notFound);
 app.use(errorHandler);
 
+// Listen locally only if not on Vercel
+const PORT = process.env.PORT || 5000;
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`.yellow.bold);
+  });
+}
 
 export default app;
