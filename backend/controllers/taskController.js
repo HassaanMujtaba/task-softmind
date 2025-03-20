@@ -42,39 +42,37 @@ const getTasks = async (req, res) => {
     let filter = {};
     const hasQueryParams = status || priority || assignedTo || myTasks !== undefined;
 
-    // Base filter setup
+ 
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
 
-    // Handle myTasks
+   
     if (myTasks !== undefined) {
-      filter.assignedTo = userId; // Override everything, show only requester's tasks
+      filter.assignedTo = userId; 
     } else {
-      // Role-based logic (always applied)
+     
       if (role === 'user') {
-        filter.assignedTo = userId; // Users always see only their tasks
+        filter.assignedTo = userId; 
       } else if (role === 'manager') {
-        // Managers see tasks assigned to users with role 'user'
+       
         const userIds = await User.find({ role: 'user' }).select('_id');
-        const validUserIds = userIds.map(u => u._id.toString()); // Convert to strings for comparison
+        const validUserIds = userIds.map(u => u._id.toString()); 
         
         if (assignedTo) {
-          // If assignedTo is provided, ensure it's a valid user ID
+          
           if (!validUserIds.includes(assignedTo)) {
             return res.status(403).json({
               message: 'Managers can only filter tasks assigned to users',
             });
           }
-          filter.assignedTo = assignedTo; // Use the specific assignedTo
+          filter.assignedTo = assignedTo; 
         } else {
-          filter.assignedTo = { $in: validUserIds }; // All users' tasks
+          filter.assignedTo = { $in: validUserIds }; 
         }
       } else if (role === 'admin') {
-        // Admins see all tasks, apply assignedTo if provided
         if (assignedTo) {
           filter.assignedTo = assignedTo;
         }
-        // No restriction otherwise
       }
     }
 
@@ -103,10 +101,8 @@ const updateTask = asyncHandler(async (req, res) => {
     }
 
     if (status !== undefined) {
-      // If status is passed in query params, update only status
       task.status = status;
     } else {
-      // Update fields from request body
       const { title, description, assignedTo, priority, dueDate, status } = req.body;
       console.log(title, description, assignedTo, priority, dueDate)
       if (title !== undefined) task.title = title;
@@ -135,7 +131,7 @@ const deleteTask = asyncHandler(async (req, res) => {
     throw new Error('Task not found');
   }
 
-  // Only admin or task creator can delete
+
   if (
     req.user.role !== 'admin' &&
     task.createdBy.toString() !== req.user._id.toString()
